@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Canvas Rubric PDF Export (v3.7 Baseline)
+// @name         Canvas Rubric PDF Export (v3.7.5 - Inline Layout, Blue No Comment, Page-Safe)
 // @namespace    https://github.com/xeunox/canvas-rubric-pdf-export
-// @version      3.7
-// @description  Export clean, readable Canvas rubrics from SpeedGrader, showing awarded ratings, comments, and final feedback.
+// @version      3.7.5
+// @description  Export Canvas rubrics to PDF with inline rating layout, aligned feedback, blue 'No Comment', and improved page formatting.
 // @match        https://*.instructure.com/courses/*/gradebook/speed_grader*
 // @grant        none
 // ==/UserScript==
@@ -43,13 +43,31 @@
         const clone = rubricElem.cloneNode(true);
         clone.querySelectorAll('input, button, select, textarea').forEach(el => el.remove());
 
-        const textAreas = document.querySelectorAll('textarea[data-selenium="criterion_comments_text"]');
-        const selectedRatings = clone.querySelectorAll('.rating-tier.selected.assessing');
+        const originalCriteria = document.querySelectorAll('[data-testid="rubric-criterion"]');
+        const clonedCriteria = clone.querySelectorAll('[data-testid="rubric-criterion"]');
 
-        selectedRatings.forEach((el, index) => {
-            const points = el.querySelector('.rating-points')?.innerText.trim() || '';
-            const desc = el.querySelector('.rating-description')?.innerText.trim() || '';
-            const commentText = textAreas[index]?.value.trim() || '';
+        originalCriteria.forEach((origCriterion, i) => {
+            const selected = origCriterion.querySelector('.rating-tier.selected.assessing');
+            const commentBox = origCriterion.querySelector('textarea[data-selenium="criterion_comments_text"]');
+            const clonedTarget = clonedCriteria[i];
+
+            if (!clonedTarget || !selected) return;
+
+            // Flatten all rating descriptions to inline format
+            const tierCells = clonedTarget.querySelectorAll('.rating-tier');
+            tierCells.forEach(tier => {
+                const pts = tier.querySelector('.rating-points')?.innerText.trim();
+                const desc = tier.querySelector('.rating-description')?.innerText.trim();
+                if (pts && desc) {
+                    tier.innerText = `${pts} – ${desc}`;
+                    tier.style.display = 'block';
+                    tier.style.padding = '4px 0';
+                }
+            });
+
+            const points = selected.querySelector('.rating-points')?.innerText.trim() || '';
+            const desc = selected.querySelector('.rating-description')?.innerText.trim() || '';
+            const commentText = commentBox?.value.trim() || '';
 
             const awardedLabel = document.createElement('div');
             awardedLabel.style.fontWeight = 'bold';
@@ -57,22 +75,25 @@
             awardedLabel.style.color = '#b30000';
             awardedLabel.innerText = `✔ Awarded: ${points} – ${desc}`;
 
-            if (commentText) {
-                const feedbackBox = document.createElement('div');
-                feedbackBox.style.marginTop = '4px';
-                feedbackBox.style.padding = '6px';
-                feedbackBox.style.background = '#f0f0f0';
-                feedbackBox.style.border = '1px solid #ccc';
-                feedbackBox.innerHTML = `<strong>Rubric Feedback:</strong> ${commentText}`;
-                awardedLabel.appendChild(feedbackBox);
-            }
+            const feedbackBox = document.createElement('div');
+            feedbackBox.style.marginTop = '4px';
+            feedbackBox.style.padding = '6px';
+            feedbackBox.style.background = '#f0f0f0';
+            feedbackBox.style.border = '1px solid #ccc';
+            feedbackBox.innerHTML = commentText
+                ? `<strong>Criterion Feedback:</strong> ${commentText}`
+                : `<strong>Criterion Feedback:</strong> <span style="color:#0073e6;">No Comment</span>`;
+            awardedLabel.appendChild(feedbackBox);
 
-            el.style.border = '1pt solid black';
-            el.style.backgroundColor = '#ffe6e6';
-            el.style.padding = '6px';
-            el.style.textAlign = 'left';
-            el.style.verticalAlign = 'top';
-            el.appendChild(awardedLabel);
+            const selectedClone = clonedTarget.querySelector('.rating-tier.selected.assessing');
+            if (selectedClone) {
+                selectedClone.style.border = '1pt solid black';
+                selectedClone.style.backgroundColor = '#ffe6e6';
+                selectedClone.style.padding = '6px';
+                selectedClone.style.textAlign = 'left';
+                selectedClone.style.verticalAlign = 'top';
+                selectedClone.appendChild(awardedLabel);
+            }
         });
 
         clone.querySelectorAll('th, td').forEach(el => {
@@ -92,20 +113,49 @@
                 <head>
                     <title>${assignmentTitle} - ${studentName}</title>
                     <style>
-                        body { font-family: sans-serif; padding: 20px; }
-                        h2, h3 { margin-bottom: 10px; }
+                        body {
+                            font-family: sans-serif;
+                            padding: 20px;
+                        }
+
+                        h2, h3 {
+                            margin-bottom: 10px;
+                        }
+
                         .thread-reply-box {
                             margin-top: 30px;
                             padding: 10px;
                             background-color: #f5f5f5;
                             border: 1px solid #ccc;
                         }
-                        table, th, td {
-                            border: 1pt solid black;
+
+                        table {
                             border-collapse: collapse;
+                            width: 100%;
+                            page-break-inside: auto;
+                        }
+
+                        th, td {
+                            border: 1pt solid black;
                             text-align: left;
                             vertical-align: top;
                             padding: 6px;
+                            page-break-inside: avoid;
+                            break-inside: avoid;
+                        }
+
+                        tr {
+                            page-break-inside: avoid;
+                            break-inside: avoid;
+                        }
+
+                        .rating-tier {
+                            page-break-inside: avoid;
+                            break-inside: avoid;
+                        }
+
+                        div {
+                            break-inside: avoid;
                         }
                     </style>
                 </head>
